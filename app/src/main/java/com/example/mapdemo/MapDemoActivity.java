@@ -1,17 +1,27 @@
 package com.example.mapdemo;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.SystemClock;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.animation.BounceInterpolator;
+import android.view.animation.Interpolator;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.ErrorDialogFragment;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
@@ -22,11 +32,16 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 
 public class MapDemoActivity extends FragmentActivity implements
 		GoogleApiClient.ConnectionCallbacks,
 		GoogleApiClient.OnConnectionFailedListener,
+        GoogleMap.OnMapLongClickListener,
 		LocationListener {
 
 	private SupportMapFragment mapFragment;
@@ -75,6 +90,10 @@ public class MapDemoActivity extends FragmentActivity implements
                     .addOnConnectionFailedListener(this).build();
 
             connectClient();
+
+            map.setInfoWindowAdapter(new CustomWindowAdapter(getLayoutInflater()));
+            // Let's also set an Long Click listener!
+            map.setOnMapLongClickListener(this);
         } else {
             Toast.makeText(this, "Error - Map was null!!", Toast.LENGTH_SHORT).show();
         }
@@ -234,7 +253,61 @@ public class MapDemoActivity extends FragmentActivity implements
 		}
 	}
 
-	// Define a DialogFragment that displays the error dialog
+    @Override
+    public void onMapLongClick(LatLng point) {
+        Toast.makeText(this, "Long Press", Toast.LENGTH_LONG).show();
+        showAlertDialogForPoint(point);
+    }
+
+    private void showAlertDialogForPoint(final LatLng point) {
+        View messageView = LayoutInflater.from(this).inflate(R.layout.message_item, null);
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
+        alertDialogBuilder.setView(messageView);
+        final AlertDialog alertDialog = alertDialogBuilder.create();
+
+        alertDialog.setButton(DialogInterface.BUTTON_POSITIVE, "OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                BitmapDescriptor defaultMarker = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA);
+                String title = ((EditText) alertDialog.findViewById(R.id.etTitle)).getText().toString();
+                String snippet = ((EditText) alertDialog.findViewById(R.id.etSnippet)).getText().toString();
+                Marker marker = map.addMarker(new MarkerOptions().position(point).title(title).snippet(snippet).icon(defaultMarker));
+                dropPinEffect(marker);
+            }
+        });
+
+        alertDialog.setButton(DialogInterface.BUTTON_NEGATIVE, "Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                dialogInterface.cancel();
+            }
+        });
+
+        alertDialog.show();
+    }
+
+    private void dropPinEffect(final Marker marker) {
+        final Handler handler = new Handler();
+        final long start = SystemClock.uptimeMillis();
+        final long duration = 1500;
+
+        final Interpolator interpolator = new BounceInterpolator();
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                long elapsed = SystemClock.uptimeMillis() - start;
+                float t = Math.max(1 - interpolator.getInterpolation((float) elapsed / duration), 0);
+                marker.setAnchor(0.5f, 1.0f + 14*t);
+                if (t>0.0) {
+                    handler.postDelayed(this, 10);
+                } else {
+                    marker.showInfoWindow();
+                }
+            }
+        });
+    }
+
+    // Define a DialogFragment that displays the error dialog
 	public static class ErrorDialogFragment extends DialogFragment {
 
 		// Global field to contain the error dialog
